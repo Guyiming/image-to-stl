@@ -71,7 +71,7 @@ base_mesh, cyan_mesh, yellow_mesh, magenta_mesh, clear_mesh = to_stl_cym(
     pixel_size=resolution_mm,
     base_height=0.2,
     max_height=0.2,
-    clear_height=0.6,
+    intensity_height=1,
     height_step_mm=0.1
 )
 
