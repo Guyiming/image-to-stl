@@ -46,12 +46,31 @@ class StlConfig(BaseModel):
         },
         description="Maximum height for each layer in mm"
     )
+def normalize_thickness(intensity: np.ndarray, max_distance: float, min_thickness: float) -> np.ndarray:
+    """
+    Convert intensity values (0-255) to thickness values
+    Uses linear mapping where:
+    - intensity 0 (black) = max_distance (fully blocks light)
+    - intensity 255 (white) = min_thickness (maximum light transmission)
+    """
+    # Normalize intensity to [0, 1]
+    normalized = intensity / 255.0
+    
+    # Linear interpolation between min_thickness and max_distance
+    thickness = (1 - normalized) * (max_distance - min_thickness) + min_thickness
+    
+    return thickness
 
-def extract_and_invert_channels(img: ImageAnalyzer) -> IntensityChannels:
-    c_channel = 255 - img.pixelated[:, :, 0]
-    y_channel = 255 - img.pixelated[:, :, 1]
-    m_channel = 255 - img.pixelated[:, :, 2]
-    intensity_map = (c_channel + y_channel + m_channel) / 3.0
+def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> IntensityChannels:
+    c_channel = normalize_thickness(img.pixelated[:, :, 0], config.layer_heights[LayerType.CYAN], config.layer_mins[LayerType.CYAN])
+    y_channel = normalize_thickness(img.pixelated[:, :, 1], config.layer_heights[LayerType.YELLOW], config.layer_mins[LayerType.YELLOW])
+    m_channel = normalize_thickness(img.pixelated[:, :, 2], config.layer_heights[LayerType.MAGENTA], config.layer_mins[LayerType.MAGENTA])
+    #m_channel = scale_to_height(img.pixelated[:, :, 2], LayerType.MAGENTA)
+    
+    # For intensity map, use average of RGB then scale to KEY layer heights
+    avg_pixels = (img.pixelated[:, :, 0] + img.pixelated[:, :, 1] + img.pixelated[:, :, 2]) / 3.0
+    intensity_map = normalize_thickness(avg_pixels, config.layer_heights[LayerType.KEY], config.layer_mins[LayerType.KEY])
+    
     return IntensityChannels(
         c_channel=c_channel,
         y_channel=y_channel,
@@ -63,31 +82,21 @@ def create_layer_mesh(height_map: np.ndarray,
                      height_step_mm: float,
                      pixel_size: float,
                      previous_heights: np.ndarray = None,
-                     override_max_height: float = None,
-                     min_layer_height: float = 0,
-                     flat_top: bool = False) -> Tuple[Mesh, np.ndarray]:
+                     ) -> Tuple[Mesh, np.ndarray]:
     vertices = []
     faces = []
     y_pixels, x_pixels = height_map.shape
     
     next_heights = np.zeros_like(height_map, dtype=float)
     
-    if flat_top:
-        max_intensity_height = np.max(previous_heights)
-        target_height = max_intensity_height + height_step_mm
-    
     for y in range(y_pixels):
         for x in range(x_pixels):
             start_height = previous_heights[y, x] if previous_heights is not None else 0
             
-            if flat_top:
-                z = target_height - start_height
-            else:
-                height_value = float(height_map[y, x]) / 255.0
-                z = height_value * override_max_height
-                if height_step_mm > 0:
-                    z = round(z / height_step_mm) * height_step_mm
-                z = max(min_layer_height, z)
+            z = height_map[y, x]
+            if height_step_mm > 0:
+                z = round(z / height_step_mm) * height_step_mm
+            #z = max(min_layer_height, z)
             
             z += start_height
             next_heights[y, x] = z
@@ -143,14 +152,14 @@ def create_layer_mesh(height_map: np.ndarray,
     return stl_mesh, next_heights
 
 def create_base_plate(x_pixels: int, y_pixels: int, config: StlConfig) -> Mesh:
-    height_map = np.full((y_pixels, x_pixels), 255, dtype=np.uint8)
+
+    height_map = np.full((y_pixels, x_pixels), config.base_height, dtype=np.uint8)
     
     base_mesh, _ = create_layer_mesh(
         height_map=height_map,
         height_step_mm=config.height_step_mm,
         pixel_size=config.pixel_size,
-        previous_heights=np.zeros((y_pixels, x_pixels)),
-        override_max_height=config.base_height
+        previous_heights=np.zeros((y_pixels, x_pixels))
     )
     
     return base_mesh
@@ -163,9 +172,7 @@ def create_color_layer(height_map: np.ndarray,
         height_map=height_map,
         height_step_mm=config.height_step_mm,
         pixel_size=config.pixel_size,
-        previous_heights=previous_heights,
-        min_layer_height = config.layer_mins[layer_type],
-        override_max_height=config.layer_heights[layer_type]
+        previous_heights=previous_heights
     )
 
 class StlCollection(BaseModel):
@@ -194,7 +201,7 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
     if len(img.pixelated.shape) != 3 or img.pixelated.shape[2] != 3:
         raise ValueError("Image must have 3 channels (CYM)")
 
-    intensity_channels = extract_and_invert_channels(img)
+    intensity_channels = extract_and_invert_channels(img, config)
     y_pixels, x_pixels = img.pixelated.shape[:2]
     
     print("creating stl: white_base_mesh.stl")
