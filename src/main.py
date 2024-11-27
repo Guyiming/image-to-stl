@@ -66,7 +66,7 @@ if show_images:
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-base_mesh, cyan_mesh, yellow_mesh, magenta_mesh, clear_mesh = to_stl_cym(
+stl_collection = to_stl_cym(
     img,
     pixel_size=resolution_mm,
     base_height=0.2,
@@ -75,10 +75,4 @@ base_mesh, cyan_mesh, yellow_mesh, magenta_mesh, clear_mesh = to_stl_cym(
     height_step_mm=0.1
 )
 
-
-# Update the save paths to use the output directory
-base_mesh.save(os.path.join(stl_output_dir, 'base_layer.stl'))
-cyan_mesh.save(os.path.join(stl_output_dir, 'cyan_layer.stl'))
-yellow_mesh.save(os.path.join(stl_output_dir, 'yellow_layer.stl'))
-magenta_mesh.save(os.path.join(stl_output_dir, 'magenta_layer.stl'))
-clear_mesh.save(os.path.join(stl_output_dir, 'clear_layer.stl'))
+stl_collection.save_to_folder(stl_output_dir)

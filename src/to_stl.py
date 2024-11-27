@@ -1,26 +1,49 @@
+import os
 from ImageAnalyzer import ImageAnalyzer
 import numpy as np
 from stl.mesh import Mesh
-from typing import Tuple
+from typing import Dict, Tuple
+from pydantic import BaseModel
+import numpy as np
 
-def extract_and_invert_channels(img: ImageAnalyzer) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+class IntensityChannels(BaseModel):
+    c_channel: np.ndarray
+    y_channel: np.ndarray
+    m_channel: np.ndarray
+    intensity_map: np.ndarray
+
+    model_config = {
+        'arbitrary_types_allowed': True
+    }
+
+
+def extract_and_invert_channels(img: ImageAnalyzer) -> IntensityChannels:
     c_channel = 255 - img.pixelated[:, :, 0]
     y_channel = 255 - img.pixelated[:, :, 1]
     m_channel = 255 - img.pixelated[:, :, 2]
     intensity_map = (c_channel + y_channel + m_channel) / 3.0
-    return c_channel, y_channel, m_channel, intensity_map
+    return IntensityChannels(
+        c_channel=c_channel,
+        y_channel=y_channel,
+        m_channel=m_channel,
+        intensity_map=intensity_map
+    )
 
 def create_layer_mesh(height_map: np.ndarray, 
                       previous_heights: np.ndarray = None, 
                       pixel_size: float = 1.0, 
                       max_height: float = 1.6, 
-                      height_step_mm: float = 0.0) -> Tuple[Mesh, np.ndarray]:
+                      height_step_mm: float = 0.0,
+                      flat_top: bool = False) -> Tuple[Mesh, np.ndarray]:
     vertices = []
     faces = []
     y_pixels, x_pixels = height_map.shape
     
-    # Store the heights for the next layer
     next_heights = np.zeros_like(height_map, dtype=float)
+    
+    if flat_top:
+        max_intensity_height = np.max(previous_heights)
+        target_height = max_intensity_height + height_step_mm
     
     for y in range(y_pixels):
         for x in range(x_pixels):
@@ -28,11 +51,14 @@ def create_layer_mesh(height_map: np.ndarray,
             start_height = previous_heights[y, x] if previous_heights is not None else 0
             
             # Calculate height
-            height_value = float(height_map[y, x]) / 255.0
-            z = height_value * max_height
-            
-            if height_step_mm > 0:
-                z = round(z / height_step_mm) * height_step_mm
+            if flat_top:
+                #current_intensity_height = float(height_map[y, x]) / 255.0 * max_height
+                z = target_height - start_height
+            else:
+                height_value = float(height_map[y, x]) / 255.0
+                z = height_value * max_height
+                if height_step_mm > 0:
+                    z = round(z / height_step_mm) * height_step_mm
             
             # Add start_height to z for stacking
             z += start_height
@@ -114,19 +140,46 @@ def create_base_plate(x_pixels: int, y_pixels: int, pixel_size: float, base_heig
     
     return base_mesh
 
+class StlCollection(BaseModel):
+    meshes: Dict[str, Mesh]
+    
+    class Config:
+        arbitrary_types_allowed = True
+    
+    def __getitem__(self, key: str) -> Mesh:
+        return self.meshes[key]
+    
+    def __iter__(self):
+        return iter(self.meshes.values())
+    
+    def items(self):
+        return self.meshes.items()
+
+    def save_to_folder(self, output_dir):
+        for k,v in self.meshes.items():
+            v.save(os.path.join(output_dir, f"{k}.stl"))
+
+
 def to_stl_cym(img: ImageAnalyzer, pixel_size: float = 1.0, max_height: float = 1.6, 
                height_step_mm: float = 0.0, base_height: float = 0.2, intensity_height: float = 1.6 ) -> Tuple[Mesh, Mesh, Mesh, Mesh, Mesh]:
     # Extract CYM channels
     if len(img.pixelated.shape) != 3 or img.pixelated.shape[2] != 3:
         raise ValueError("Image must have 3 channels (CYM)")
 
-    c_channel, y_channel, m_channel, intensity_map = extract_and_invert_channels(img)
+    intensity_channels = extract_and_invert_channels(img)
 
     y_pixels, x_pixels = img.pixelated.shape[:2]
     
     base_mesh = create_base_plate(x_pixels, y_pixels, pixel_size, base_height)
-    cyan_mesh, cyan_heights = create_layer_mesh(c_channel, previous_heights=np.full_like(c_channel, base_height, dtype=float), pixel_size=pixel_size, max_height=max_height, height_step_mm=height_step_mm)
-    yellow_mesh, yellow_heights = create_layer_mesh(y_channel, previous_heights=cyan_heights, pixel_size=pixel_size, max_height=max_height, height_step_mm=height_step_mm)
-    magenta_mesh, magenta_heights = create_layer_mesh(m_channel, previous_heights=yellow_heights, pixel_size=pixel_size, max_height=max_height, height_step_mm=height_step_mm)
-    intensity_mesh, _ = create_layer_mesh(intensity_map, previous_heights=magenta_heights, pixel_size=pixel_size, max_height=intensity_height, height_step_mm=height_step_mm)    
-    return base_mesh, cyan_mesh, yellow_mesh, magenta_mesh, intensity_mesh
+    cyan_mesh, cyan_heights = create_layer_mesh(intensity_channels.c_channel, previous_heights=np.full_like(intensity_channels.c_channel, base_height, dtype=float), pixel_size=pixel_size, max_height=max_height, height_step_mm=height_step_mm)
+    yellow_mesh, yellow_heights = create_layer_mesh(intensity_channels.y_channel, previous_heights=cyan_heights, pixel_size=pixel_size, max_height=max_height, height_step_mm=height_step_mm)
+    magenta_mesh, magenta_heights = create_layer_mesh(intensity_channels.m_channel, previous_heights=yellow_heights, pixel_size=pixel_size, max_height=max_height, height_step_mm=height_step_mm)
+    intensity_mesh, _ = create_layer_mesh(intensity_channels.intensity_map, previous_heights=magenta_heights, pixel_size=pixel_size, max_height=intensity_height, height_step_mm=height_step_mm)    
+
+    return StlCollection(meshes={
+        'base_mesh': base_mesh,
+        'cyan_mesh': cyan_mesh,
+        'yellow_mesh': yellow_mesh,
+        'magenta_mesh': magenta_mesh,
+        'intensity_map': intensity_mesh
+    })
