@@ -9,6 +9,7 @@ src/__pycache__/*
 /__pycache__/
 *.py[cod]
 *$py.class
+src/__pycache__/to_stl.cpython-313.pyc
 
 # Distribution / packaging
 dist/

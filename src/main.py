@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from ImageAnalyzer import ImageAnalyzer
-from to_stl import to_stl_cym
+from to_stl import LayerType, to_stl_cym, StlConfig
 import os
 import cv2
 import argparse
@@ -66,13 +66,29 @@ if show_images:
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-stl_collection = to_stl_cym(
-    img,
+# Create STL configuration
+stl_config = StlConfig(
     pixel_size=resolution_mm,
     base_height=0.2,
-    max_height=0.2,
-    intensity_height=1,
-    height_step_mm=0.1
+    height_step_mm=0.1,
+    layer_heights={
+        LayerType.CYAN: 0.2,
+        LayerType.YELLOW: 0.2,
+        LayerType.MAGENTA: 0.2,
+        LayerType.KEY: 1.6,
+    },
+    layer_mins={
+        LayerType.CYAN: 0,
+        LayerType.YELLOW: 0,
+        LayerType.MAGENTA: 0,
+        LayerType.KEY: 0.2,
+    }
 )
 
-stl_collection.save_to_folder(stl_output_dir)
+if __name__ == "__main__":
+    stl_collection = to_stl_cym(
+        img,
+        config=stl_config
+    )
+
+    stl_collection.save_to_folder(stl_output_dir)
