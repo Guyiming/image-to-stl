@@ -2,6 +2,7 @@
 
 from ImageAnalyzer import ImageAnalyzer
 from to_stl import LayerType, to_stl_cym, StlConfig
+from color_mixing import hex_to_rgb
 import os
 import cv2
 import argparse
@@ -72,17 +73,23 @@ stl_config = StlConfig(
     base_height=0.2,
     height_step_mm=0.1,
     layer_heights={
-        LayerType.CYAN: 0.2,
-        LayerType.YELLOW: 0.2,
-        LayerType.MAGENTA: 0.2,
-        LayerType.KEY: 1.6,
+        LayerType.CYAN: 8,
+        LayerType.YELLOW: 6,
+        LayerType.MAGENTA: 4,
+        LayerType.KEY: 5,
     },
     layer_mins={
         LayerType.CYAN: 0,
         LayerType.YELLOW: 0,
         LayerType.MAGENTA: 0,
         LayerType.KEY: 0.2,
-    }
+    },
+    filament_colors={
+        LayerType.CYAN: hex_to_rgb("#0086D6"),     # RGB for Cyan
+        LayerType.YELLOW: hex_to_rgb("#F4EE2A"),   # RGB for Yellow
+        LayerType.MAGENTA: hex_to_rgb("#EC008C"),  # RGB for Magenta
+        LayerType.KEY: hex_to_rgb("#FFFFFF"),      # RGB for White
+    },
 )
 
 if __name__ == "__main__":

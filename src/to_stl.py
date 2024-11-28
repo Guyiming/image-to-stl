@@ -3,80 +3,9 @@ from ImageAnalyzer import ImageAnalyzer
 import numpy as np
 from stl.mesh import Mesh
 from typing import Dict, Tuple
-from pydantic import BaseModel, Field
-from enum import Enum
-
-class LayerType(Enum):
-    CYAN = "cyan"
-    YELLOW = "yellow"
-    MAGENTA = "magenta"
-    KEY = "key"  # For intensity/black
-    BASE = "base"
-
-class IntensityChannels(BaseModel):
-    c_channel: np.ndarray
-    y_channel: np.ndarray
-    m_channel: np.ndarray
-    intensity_map: np.ndarray
-
-    model_config = {
-        'arbitrary_types_allowed': True
-    }
-
-class StlConfig(BaseModel):
-    """Configuration for STL generation"""
-    base_height: float = Field(default=0.2, description="Height of the base plate in mm")
-    pixel_size: float = Field(default=1.0, description="Size of each pixel in mm")
-    height_step_mm: float = Field(default=0.0, description="Height quantization step. 0 for continuous height")
-    layer_heights: Dict[LayerType, float] = Field(
-        default_factory=lambda: {
-            LayerType.CYAN: 1.6,
-            LayerType.YELLOW: 1.6,
-            LayerType.MAGENTA: 1.6,
-            LayerType.KEY: 1.6,
-        },
-        description="Maximum height for each layer in mm"
-    )
-    layer_mins: Dict[LayerType, float] = Field(
-        default_factory=lambda: {
-            LayerType.CYAN: 0,
-            LayerType.YELLOW: 0,
-            LayerType.MAGENTA: 0,
-            LayerType.KEY: 0,
-        },
-        description="Maximum height for each layer in mm"
-    )
-def normalize_thickness(intensity: np.ndarray, max_distance: float, min_thickness: float) -> np.ndarray:
-    """
-    Convert intensity values (0-255) to thickness values
-    Uses linear mapping where:
-    - intensity 0 (black) = max_distance (fully blocks light)
-    - intensity 255 (white) = min_thickness (maximum light transmission)
-    """
-    # Normalize intensity to [0, 1]
-    normalized = intensity / 255.0
-    
-    # Linear interpolation between min_thickness and max_distance
-    thickness = (1 - normalized) * (max_distance - min_thickness) + min_thickness
-    
-    return thickness
-
-def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> IntensityChannels:
-    c_channel = normalize_thickness(img.pixelated[:, :, 0], config.layer_heights[LayerType.CYAN], config.layer_mins[LayerType.CYAN])
-    y_channel = normalize_thickness(img.pixelated[:, :, 1], config.layer_heights[LayerType.YELLOW], config.layer_mins[LayerType.YELLOW])
-    m_channel = normalize_thickness(img.pixelated[:, :, 2], config.layer_heights[LayerType.MAGENTA], config.layer_mins[LayerType.MAGENTA])
-    #m_channel = scale_to_height(img.pixelated[:, :, 2], LayerType.MAGENTA)
-    
-    # For intensity map, use average of RGB then scale to KEY layer heights
-    avg_pixels = (img.pixelated[:, :, 0] + img.pixelated[:, :, 1] + img.pixelated[:, :, 2]) / 3.0
-    intensity_map = normalize_thickness(avg_pixels, config.layer_heights[LayerType.KEY], config.layer_mins[LayerType.KEY])
-    
-    return IntensityChannels(
-        c_channel=c_channel,
-        y_channel=y_channel,
-        m_channel=m_channel,
-        intensity_map=intensity_map
-    )
+from pydantic import BaseModel
+from Models import LayerType, IntensityChannels, StlConfig
+from color_mixing import normalize_thickness_linear, extract_and_invert_channels
 
 def create_layer_mesh(height_map: np.ndarray,
                      height_step_mm: float,
@@ -202,6 +131,8 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
         raise ValueError("Image must have 3 channels (CYM)")
 
     intensity_channels = extract_and_invert_channels(img, config)
+    print(intensity_channels)
+    #print(intensity_channels)
     y_pixels, x_pixels = img.pixelated.shape[:2]
     
     print("creating stl: white_base_mesh.stl")
