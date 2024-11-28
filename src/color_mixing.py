@@ -47,9 +47,9 @@ def calculate_exact_thicknesses(
     f3 = filaments[LayerType.YELLOW]
     
     # Normalize filament RGB values to [0, 1] for logarithmic calculations
-    f1_rgb = np.array(f1.rgb) / 255.0
-    f2_rgb = np.array(f2.rgb) / 255.0
-    f3_rgb = np.array(f3.rgb) / 255.0
+    f1_rgb = np.array(hex_to_rgb(f1.hex_value)) / 255.0
+    f2_rgb = np.array(hex_to_rgb(f2.hex_value)) / 255.0
+    f3_rgb = np.array(hex_to_rgb(f3.hex_value)) / 255.0
 
     # Prevent log(0) errors
     epsilon = 1e-10
@@ -85,36 +85,20 @@ def calculate_exact_thicknesses(
         x = np.linalg.lstsq(A, b, rcond=None)[0]
     
     # Convert relative thicknesses to actual thicknesses
-    thickness_1 = x[0] * f1.max_distance
-    thickness_2 = x[1] * f2.max_distance
-    thickness_3 = x[2] * f3.max_distance
+    thickness_1 = x[0] * f1.transmission_distance
+    thickness_2 = x[1] * f2.transmission_distance
+    thickness_3 = x[2] * f3.transmission_distance
     
     # Clip to physical constraints
-    thickness_1 = np.clip(thickness_1, f1.min_thickness, f1.max_distance)
-    thickness_2 = np.clip(thickness_2, f2.min_thickness, f2.max_distance)
-    thickness_3 = np.clip(thickness_3, f3.min_thickness, f3.max_distance)
+    thickness_1 = np.clip(thickness_1, 0, f1.transmission_distance)
+    thickness_2 = np.clip(thickness_2, 0, f2.transmission_distance)
+    thickness_3 = np.clip(thickness_3, 0, f3.transmission_distance)
     
     return thickness_1, thickness_2, thickness_3
 
 def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> IntensityChannels:
     # Create FilamentProperties from config
-    filaments = {
-        LayerType.CYAN: FilamentProperties(
-            rgb=config.filament_colors[LayerType.CYAN],
-            max_distance=config.layer_heights[LayerType.CYAN],
-            min_thickness=config.layer_mins[LayerType.CYAN]
-        ),
-        LayerType.MAGENTA: FilamentProperties(
-            rgb=config.filament_colors[LayerType.MAGENTA],
-            max_distance=config.layer_heights[LayerType.MAGENTA],
-            min_thickness=config.layer_mins[LayerType.MAGENTA]
-        ),
-        LayerType.YELLOW: FilamentProperties(
-            rgb=config.filament_colors[LayerType.YELLOW],
-            max_distance=config.layer_heights[LayerType.YELLOW],
-            min_thickness=config.layer_mins[LayerType.YELLOW]
-        )
-    }
+    filaments = config.filament_library
     
     # Initialize output arrays
     shape = img.pixelated.shape[:2]
@@ -125,8 +109,8 @@ def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> Intens
     # Process each pixel
     for i in range(shape[0]):
         for j in range(shape[1]):
-            c, m, y = calculate_exact_thicknesses(img.pixelated[i,j], filaments)
-            print(img.pixelated[i,j], c,m,y)
+            c, m, y = calculate_exact_thicknesses(img.pixelated[i,j], config.filament_library)
+            #print(img.pixelated[i,j], c,m,y)
             c_channel[i,j] = c
             m_channel[i,j] = m
             y_channel[i,j] = y
@@ -135,8 +119,8 @@ def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> Intens
     avg_pixels = (img.pixelated[:, :, 0] + img.pixelated[:, :, 1] + img.pixelated[:, :, 2]) / 3.0
     intensity_map = normalize_thickness_linear(
         avg_pixels,
-        config.layer_heights[LayerType.KEY],
-        config.layer_mins[LayerType.KEY]
+        filaments[LayerType.WHITE].transmission_distance,
+        config.intensity_min_height
     )
     
     return IntensityChannels(
@@ -162,13 +146,13 @@ def normalize_thickness_linear(intensity: np.ndarray, max_distance: float, min_t
     return thickness
 
 def extract_and_invert_channels_linear(img: ImageAnalyzer, config: StlConfig) -> IntensityChannels:
-    c_channel = normalize_thickness_linear(img.pixelated[:, :, 0], config.layer_heights[LayerType.CYAN], config.layer_mins[LayerType.CYAN])
-    y_channel = normalize_thickness_linear(img.pixelated[:, :, 1], config.layer_heights[LayerType.YELLOW], config.layer_mins[LayerType.YELLOW])
-    m_channel = normalize_thickness_linear(img.pixelated[:, :, 2], config.layer_heights[LayerType.MAGENTA], config.layer_mins[LayerType.MAGENTA])
+    c_channel = normalize_thickness_linear(img.pixelated[:, :, 0], config.filament_library[LayerType.CYAN].transmission_distance, 0)
+    y_channel = normalize_thickness_linear(img.pixelated[:, :, 1], config.filament_library[LayerType.YELLOW].transmission_distance, 0) 
+    m_channel = normalize_thickness_linear(img.pixelated[:, :, 2], config.filament_library[LayerType.MAGENTA].transmission_distance, 0)
     
     # For intensity map, use average of RGB then scale to KEY layer heights
     avg_pixels = (img.pixelated[:, :, 0] + img.pixelated[:, :, 1] + img.pixelated[:, :, 2]) / 3.0
-    intensity_map = normalize_thickness_linear(avg_pixels, config.layer_heights[LayerType.KEY], config.layer_mins[LayerType.KEY])
+    intensity_map = normalize_thickness_linear(avg_pixels, config.filament_library[LayerType.WHITE].transmission_distance, config.intensity_min_height)
     
     return IntensityChannels(
         c_channel=c_channel,

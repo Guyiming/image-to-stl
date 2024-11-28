@@ -25,7 +25,6 @@ def create_layer_mesh(height_map: np.ndarray,
             z = height_map[y, x]
             if height_step_mm > 0:
                 z = round(z / height_step_mm) * height_step_mm
-            #z = max(min_layer_height, z)
             
             z += start_height
             next_heights[y, x] = z
@@ -131,7 +130,6 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
         raise ValueError("Image must have 3 channels (CYM)")
 
     intensity_channels = extract_and_invert_channels(img, config)
-    print(intensity_channels)
     #print(intensity_channels)
     y_pixels, x_pixels = img.pixelated.shape[:2]
     
@@ -143,7 +141,7 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
         'cyan_mesh': (intensity_channels.c_channel, base_heights, LayerType.CYAN),
         'yellow_mesh': (intensity_channels.y_channel, None, LayerType.YELLOW),
         'magenta_mesh': (intensity_channels.m_channel, None, LayerType.MAGENTA),
-        'white_intensity_mesh': (intensity_channels.intensity_map, None, LayerType.KEY)
+        'white_intensity_mesh': (intensity_channels.intensity_map, None, LayerType.WHITE)
     }
     
     previous_heights = base_heights

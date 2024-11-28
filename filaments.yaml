@@ -1,0 +1,27 @@
+bambu_white_pla:
+  manufacturer: bambu
+  filament_type: pla
+  color_name: white
+  hex_value: "#FFFFFF"
+  transmission_distance: 5.0
+
+bambu_cyan_pla:
+  manufacturer: bambu
+  filament_type: pla
+  color_name: cyan 
+  hex_value: "#0086D6"
+  transmission_distance: 8.0
+
+bambu_yellow_pla:
+  manufacturer: bambu
+  filament_type: pla
+  color_name: yellow
+  hex_value: "#F4EE2A"
+  transmission_distance: 6.0
+
+bambu_magenta_pla:
+  manufacturer: bambu
+  filament_type: pla
+  color_name: magenta
+  hex_value: "#EC008C"
+  transmission_distance: 4.0

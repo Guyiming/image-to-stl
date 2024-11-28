@@ -1,11 +1,13 @@
 #!/usr/bin/python3
 
 from ImageAnalyzer import ImageAnalyzer
+from filaments import FilamentLibrary
 from to_stl import LayerType, to_stl_cym, StlConfig
 from color_mixing import hex_to_rgb
 import os
 import cv2
 import argparse
+from pathlib import Path
 
 
 # Set up command line arguments
@@ -53,6 +55,10 @@ physical_height_mm = (y_pixels / x_pixels) * desired_width_mm
 print(f"Image will be divided into {n_blocks}x{int(n_blocks * (y_pixels/x_pixels))} blocks")
 print(f"Each block will be {resolution_mm}mm x {resolution_mm}mm")
 print(f"Final dimensions will be {desired_width_mm}mm x {physical_height_mm:.1f}mm")
+# Usage example
+yaml_path = Path("filaments.yaml")
+library = FilamentLibrary.from_yaml(yaml_path)
+
 
 img.pixelate(block_size)
 
@@ -71,25 +77,14 @@ if show_images:
 stl_config = StlConfig(
     pixel_size=resolution_mm,
     base_height=0.2,
+    intensity_min_height=0.2,
     height_step_mm=0.1,
-    layer_heights={
-        LayerType.CYAN: 8,
-        LayerType.YELLOW: 6,
-        LayerType.MAGENTA: 4,
-        LayerType.KEY: 5,
-    },
-    layer_mins={
-        LayerType.CYAN: 0,
-        LayerType.YELLOW: 0,
-        LayerType.MAGENTA: 0,
-        LayerType.KEY: 0.2,
-    },
-    filament_colors={
-        LayerType.CYAN: hex_to_rgb("#0086D6"),     # RGB for Cyan
-        LayerType.YELLOW: hex_to_rgb("#F4EE2A"),   # RGB for Yellow
-        LayerType.MAGENTA: hex_to_rgb("#EC008C"),  # RGB for Magenta
-        LayerType.KEY: hex_to_rgb("#FFFFFF"),      # RGB for White
-    },
+    filament_library={
+        LayerType.CYAN: library.get_filament("bambu_cyan_pla"),     # RGB for Cyan
+        LayerType.YELLOW: library.get_filament("bambu_yellow_pla"),   # RGB for Yellow
+        LayerType.MAGENTA: library.get_filament("bambu_magenta_pla"),  # RGB for Magenta
+        LayerType.WHITE: library.get_filament("bambu_white_pla"),      # RGB for White
+    }
 )
 
 if __name__ == "__main__":

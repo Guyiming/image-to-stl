@@ -64,10 +64,11 @@ Configure the following settings for optimal results:
 ## Project TODO
 
 ### Mixing algorithm
-- [ ] Implement transmission distance model
+- [x] Implement transmission distance model
 - [ ] Implement more optimal subtractive color mixing model
 
 ### Usability
+- [ ] Add yaml config for filament parameters
 - [ ] Replace resolution with nozzle sizes (0.2mm and 0.4mm)
 - [ ] Implement error handling for invalid input images
 - [ ] Add progress bar for long operations
