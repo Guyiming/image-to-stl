@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from ImageAnalyzer import ImageAnalyzer
+from Models import ColorCorrection, LuminanceConfig
 from filaments import FilamentLibrary
 from to_stl import LayerType, to_stl_cym, StlConfig
 from color_mixing import hex_to_rgb
@@ -79,6 +80,10 @@ stl_config = StlConfig(
     base_height=0.2,
     intensity_min_height=0.2,
     height_step_mm=0.1,
+    luminance_config = LuminanceConfig(
+        target_max_luminance=0.9,  # percent light transmission in brightest areas
+    ),
+    color_correction=ColorCorrection.LUMINANCE,
     filament_library={
         LayerType.CYAN: library.get_filament("bambu_cyan_pla"),     # RGB for Cyan
         LayerType.YELLOW: library.get_filament("bambu_yellow_pla"),   # RGB for Yellow

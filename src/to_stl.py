@@ -1,11 +1,9 @@
-import os
 from ImageAnalyzer import ImageAnalyzer
 import numpy as np
 from stl.mesh import Mesh
-from typing import Dict, Tuple
-from pydantic import BaseModel
-from Models import LayerType, IntensityChannels, StlConfig
-from color_mixing import normalize_thickness_linear, extract_and_invert_channels
+from typing import Tuple
+from Models import ColorCorrection, LayerType, StlConfig, StlCollection
+from color_mixing import extract_and_invert_channels, extract_and_invert_channels_linear
 
 def create_layer_mesh(height_map: np.ndarray,
                      height_step_mm: float,
@@ -80,8 +78,7 @@ def create_layer_mesh(height_map: np.ndarray,
     return stl_mesh, next_heights
 
 def create_base_plate(x_pixels: int, y_pixels: int, config: StlConfig) -> Mesh:
-
-    height_map = np.full((y_pixels, x_pixels), config.base_height, dtype=np.uint8)
+    height_map = np.full((y_pixels, x_pixels), config.base_height, dtype=float)
     
     base_mesh, _ = create_layer_mesh(
         height_map=height_map,
@@ -103,24 +100,6 @@ def create_color_layer(height_map: np.ndarray,
         previous_heights=previous_heights
     )
 
-class StlCollection(BaseModel):
-    meshes: Dict[str, Mesh]
-    
-    class Config:
-        arbitrary_types_allowed = True
-    
-    def __getitem__(self, key: str) -> Mesh:
-        return self.meshes[key]
-    
-    def __iter__(self):
-        return iter(self.meshes.values())
-    
-    def items(self):
-        return self.meshes.items()
-
-    def save_to_folder(self, output_dir):
-        for k,v in self.meshes.items():
-            v.save(os.path.join(output_dir, f"{k}.stl"))
 
 def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
     if config is None:
@@ -129,14 +108,14 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
     if len(img.pixelated.shape) != 3 or img.pixelated.shape[2] != 3:
         raise ValueError("Image must have 3 channels (CYM)")
 
-    intensity_channels = extract_and_invert_channels(img, config)
-    #print(intensity_channels)
+    intensity_channels = extract_and_invert_channels(img, config) if config.color_correction == ColorCorrection.LUMINANCE else extract_and_invert_channels_linear(img, config)
     y_pixels, x_pixels = img.pixelated.shape[:2]
     
     print("creating stl: white_base_mesh.stl")
     base_mesh = create_base_plate(x_pixels, y_pixels, config)
-    base_heights = np.full_like(intensity_channels.c_channel, config.base_height, dtype=float)
-    
+    base_heights = np.full((y_pixels, x_pixels), config.base_height, dtype=float)
+    print("base_heights " + str(config.base_height))
+
     layers = {
         'cyan_mesh': (intensity_channels.c_channel, base_heights, LayerType.CYAN),
         'yellow_mesh': (intensity_channels.y_channel, None, LayerType.YELLOW),

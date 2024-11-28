@@ -1,8 +1,11 @@
 import numpy as np
-from Models import LayerType, IntensityChannels, StlConfig, FilamentProperties
+from Models import LayerType, IntensityChannels, LuminanceConfig, StlConfig, FilamentProperties
 from ImageAnalyzer import ImageAnalyzer
 from dataclasses import dataclass
 from typing import Dict, Tuple
+from pydantic import BaseModel, Field
+
+
 
 def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
     # Remove the hash symbol if present
@@ -21,113 +24,126 @@ def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
     g = int(hex_color[2:4], 16)
     b = int(hex_color[4:6], 16)
     
-    return (max(r,1), max(g,1), max(b,1))
+    return (max(r,0), max(g,0), max(b,0))
 
-def calculate_exact_thicknesses(
+def calculate_color_thicknesses(
     target_rgb: np.ndarray,
-    filaments: Dict[LayerType, FilamentProperties]
+    filaments: Dict[LayerType, FilamentProperties],
+    luminance_config: LuminanceConfig,
 ) -> Tuple[float, float, float]:
     """
-    Calculate exact layer thicknesses using measured RGB values of filaments
-    
-    For each wavelength (R,G,B), the transmission through a layer is:
-    T = e^(-t/d) where:
-    T is transmission ratio for that wavelength (0-1)
-    t is thickness
-    d is max transmission distance
-    
-    For multiple layers, multiply transmission ratios per wavelength
+    Calculate thicknesses for CMY layers based on how much RGB they need to block.
+    Maximum thickness is determined by transmission distance and target luminance.
     """
-    # Convert target RGB (0-255) to transmission values (0-1)
+    # Convert target RGB to [0,1] scale
     target_t = target_rgb / 255.0
     
     # Get filament properties
-    f1 = filaments[LayerType.CYAN]
-    f2 = filaments[LayerType.MAGENTA]
-    f3 = filaments[LayerType.YELLOW]
+    f_cyan = filaments[LayerType.CYAN]
+    f_magenta = filaments[LayerType.MAGENTA]
+    f_yellow = filaments[LayerType.YELLOW]
     
-    # Normalize filament RGB values to [0, 1] for logarithmic calculations
-    f1_rgb = np.array(hex_to_rgb(f1.hex_value)) / 255.0
-    f2_rgb = np.array(hex_to_rgb(f2.hex_value)) / 255.0
-    f3_rgb = np.array(hex_to_rgb(f3.hex_value)) / 255.0
-
-    # Prevent log(0) errors
-    epsilon = 1e-10
-    target_t = np.clip(target_t, epsilon, 1.0)
+    # Convert hex colors to RGB [0,1]
+    cyan_rgb = np.array(hex_to_rgb(f_cyan.hex_value)) / 255.0
+    magenta_rgb = np.array(hex_to_rgb(f_magenta.hex_value)) / 255.0
+    yellow_rgb = np.array(hex_to_rgb(f_yellow.hex_value)) / 255.0
     
-    # Set up the system of equations
-    # For each wavelength (R,G,B):
-    # target_T = T1^a * T2^b * T3^c
-    # where T1,T2,T3 are the base transmission ratios of each filament
-    # Taking log of both sides:
-    # log(target_T) = a*log(T1) + b*log(T2) + c*log(T3)
+    # Calculate max thickness for each layer based on transmission distance
+    # and target luminance
+    cyan_max = f_cyan.transmission_distance * (1 - luminance_config.target_max_luminance) / 3.0
+    magenta_max = f_magenta.transmission_distance * (1 - luminance_config.target_max_luminance) / 3.0
+    yellow_max = f_yellow.transmission_distance * (1 - luminance_config.target_max_luminance) / 3.0
     
-    # Create matrix A for the system Ax = b
-    A = np.array([
-        [np.log(f1_rgb[0]), np.log(f2_rgb[0]), np.log(f3_rgb[0])],
-        [np.log(f1_rgb[1]), np.log(f2_rgb[1]), np.log(f3_rgb[1])],
-        [np.log(f1_rgb[2]), np.log(f2_rgb[2]), np.log(f3_rgb[2])]
-    ])
+    # Calculate how much of each primary color needs to be blocked
+    cyan_needed = (1.0 - target_t[0]) * cyan_max
+    magenta_needed = (1.0 - target_t[1]) * magenta_max
+    yellow_needed = (1.0 - target_t[2]) * yellow_max
     
-    # Create vector b
-    b = np.array([
-        np.log(target_t[0]),
-        np.log(target_t[1]),
-        np.log(target_t[2])
-    ])
-    #print(A,b)
+    # Scale based on how effectively each filament blocks its primary color
+    cyan_thickness = cyan_needed * (1.0 - cyan_rgb[0])     # How well cyan blocks red
+    magenta_thickness = magenta_needed * (1.0 - magenta_rgb[1])  # How well magenta blocks green
+    yellow_thickness = yellow_needed * (1.0 - yellow_rgb[2])    # How well yellow blocks blue
     
-    # Solve for x (the relative thicknesses)
-    try:
-        x = np.linalg.solve(A, b)
-    except np.linalg.LinAlgError:
-        # If matrix is singular, use least squares
-        x = np.linalg.lstsq(A, b, rcond=None)[0]
-    
-    # Convert relative thicknesses to actual thicknesses
-    thickness_1 = x[0] * f1.transmission_distance
-    thickness_2 = x[1] * f2.transmission_distance
-    thickness_3 = x[2] * f3.transmission_distance
+    # Add extra thickness where multiple colors are needed
+    darkness_factor = 1.0 - np.max(target_t)
+    cyan_thickness *= (1.0 + darkness_factor)
+    magenta_thickness *= (1.0 + darkness_factor)
+    yellow_thickness *= (1.0 + darkness_factor)
     
     # Clip to physical constraints
-    thickness_1 = np.clip(thickness_1, 0, f1.transmission_distance)
-    thickness_2 = np.clip(thickness_2, 0, f2.transmission_distance)
-    thickness_3 = np.clip(thickness_3, 0, f3.transmission_distance)
+    cyan_thickness = np.clip(cyan_thickness, 0, cyan_max)
+    magenta_thickness = np.clip(magenta_thickness, 0, magenta_max)
+    yellow_thickness = np.clip(yellow_thickness, 0, yellow_max)
     
-    return thickness_1, thickness_2, thickness_3
+    return cyan_thickness, magenta_thickness, yellow_thickness
+
+def calculate_white_thickness(
+    target_rgb: np.ndarray,
+    filaments: Dict[LayerType, FilamentProperties],
+    luminance_config: LuminanceConfig
+) -> float:
+    """Calculate white layer thickness based on luminance"""
+    # Calculate perceived brightness
+    brightness = (0.299 * target_rgb[0] + 
+                 0.587 * target_rgb[1] + 
+                 0.114 * target_rgb[2]) / 255.0
+    
+    # Calculate saturation
+    max_rgb = np.max(target_rgb)
+    min_rgb = np.min(target_rgb)
+    saturation = (max_rgb - min_rgb) / (max_rgb + 1e-10)
+    
+    # Get white filament properties
+    f_white = filaments[LayerType.WHITE]
+    max_white_thickness = f_white.transmission_distance * (1 - luminance_config.target_max_luminance)
+    
+    # Calculate white thickness
+    white_thickness = ((1.0 - brightness) * 
+                      (1.0 - saturation * 0.8) *  # Reduce white more in saturated areas
+                      max_white_thickness)
+    
+    # Add extra white for very dark colors
+    if brightness < 0.2:
+        white_thickness *= 1.5  # Boost dark areas
+    
+    return np.clip(white_thickness, 0, max_white_thickness)
+
+def calculate_exact_thicknesses(
+    target_rgb: np.ndarray,
+    filaments: Dict[LayerType, FilamentProperties],
+    luminance_config: LuminanceConfig
+) -> Tuple[float, float, float, float]:
+    """Calculate all layer thicknesses"""
+    c, m, y = calculate_color_thicknesses(target_rgb, filaments, luminance_config)
+    w = calculate_white_thickness(target_rgb, filaments, luminance_config)
+    return c, m, y, w
 
 def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> IntensityChannels:
-    # Create FilamentProperties from config
-    filaments = config.filament_library
-    
-    # Initialize output arrays
+    """Process entire image"""
     shape = img.pixelated.shape[:2]
     c_channel = np.zeros(shape)
     y_channel = np.zeros(shape)
     m_channel = np.zeros(shape)
+    w_channel = np.zeros(shape)
     
     # Process each pixel
     for i in range(shape[0]):
         for j in range(shape[1]):
-            c, m, y = calculate_exact_thicknesses(img.pixelated[i,j], config.filament_library)
-            #print(img.pixelated[i,j], c,m,y)
+            c, m, y, w = calculate_exact_thicknesses(
+                img.pixelated[i,j], 
+                config.filament_library, 
+                config.luminance_config
+            )
             c_channel[i,j] = c
             m_channel[i,j] = m
             y_channel[i,j] = y
-    
-    # Calculate intensity map
-    avg_pixels = (img.pixelated[:, :, 0] + img.pixelated[:, :, 1] + img.pixelated[:, :, 2]) / 3.0
-    intensity_map = normalize_thickness_linear(
-        avg_pixels,
-        filaments[LayerType.WHITE].transmission_distance,
-        config.intensity_min_height
-    )
+            w_channel[i,j] = w
     
     return IntensityChannels(
         c_channel=c_channel,
         y_channel=y_channel,
         m_channel=m_channel,
-        intensity_map=intensity_map
+        intensity_map=w_channel
     )
 
 def normalize_thickness_linear(intensity: np.ndarray, max_distance: float, min_thickness: float) -> np.ndarray:
