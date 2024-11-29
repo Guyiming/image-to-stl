@@ -9,6 +9,8 @@ def create_layer_mesh(height_map: np.ndarray,
                      height_step_mm: float,
                      pixel_size: float,
                      previous_heights: np.ndarray = None,
+                     min_height: float = 0,
+                     flat_top: bool = False,
                      ) -> Tuple[Mesh, np.ndarray]:
     vertices = []
     faces = []
@@ -16,13 +18,21 @@ def create_layer_mesh(height_map: np.ndarray,
     
     next_heights = np.zeros_like(height_map, dtype=float)
     
+    # Calculate the target height for flat top
+    max_height = np.max(previous_heights) + min_height if flat_top else 0
+    
     for y in range(y_pixels):
         for x in range(x_pixels):
             start_height = previous_heights[y, x] if previous_heights is not None else 0
             
-            z = height_map[y, x]
-            if height_step_mm > 0:
-                z = round(z / height_step_mm) * height_step_mm
+            if flat_top:
+                # Calculate the height needed to reach max_height
+                z = max_height - previous_heights[y, x]
+            else:
+                z = height_map[y, x]
+                if height_step_mm > 0:
+                    z = round(z / height_step_mm) * height_step_mm
+                z = max(z, min_height)
             
             z += start_height
             next_heights[y, x] = z
@@ -92,12 +102,16 @@ def create_base_plate(x_pixels: int, y_pixels: int, config: StlConfig) -> Mesh:
 def create_color_layer(height_map: np.ndarray, 
                       previous_heights: np.ndarray,
                       config: StlConfig,
-                      layer_type: LayerType) -> Tuple[Mesh, np.ndarray]:
+                      layer_type: LayerType,
+                      flat_top: bool = False) -> Tuple[Mesh, np.ndarray]:
     return create_layer_mesh(
         height_map=height_map,
         height_step_mm=config.height_step_mm,
         pixel_size=config.pixel_size,
-        previous_heights=previous_heights
+        previous_heights=previous_heights,
+        min_height=config.intensity_min_height if layer_type == LayerType.WHITE else 0,
+        flat_top=flat_top
+      
     )
 
 
@@ -120,6 +134,7 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
         'cyan_mesh': (intensity_channels.c_channel, base_heights, LayerType.CYAN),
         'yellow_mesh': (intensity_channels.y_channel, None, LayerType.YELLOW),
         'magenta_mesh': (intensity_channels.m_channel, None, LayerType.MAGENTA),
+        'clear_mesh': (intensity_channels.intensity_map, None, LayerType.CLEAR),
         'white_intensity_mesh': (intensity_channels.intensity_map, None, LayerType.WHITE)
     }
     
@@ -132,7 +147,8 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
             height_map=height_map,
             previous_heights=previous_heights,
             config=config,
-            layer_type=layer_type
+            layer_type=layer_type,
+            flat_top=layer_type == LayerType.CLEAR,
         )
         meshes[name] = mesh
     

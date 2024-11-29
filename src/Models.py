@@ -25,6 +25,7 @@ class LayerType(Enum):
     YELLOW = "yellow"
     MAGENTA = "magenta"
     WHITE = "white"  # For intensity/black
+    CLEAR = "clear"  # For intensity/black
     BASE = "base"
 
 class Filament(BaseModel):

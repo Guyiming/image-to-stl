@@ -30,9 +30,10 @@ def calculate_color_thicknesses(
     target_rgb: np.ndarray,
     filaments: Dict[LayerType, FilamentProperties],
     luminance_config: LuminanceConfig,
-) -> Tuple[float, float, float]:
+) -> Tuple[float, float, float, float]:
     """
     Calculate thicknesses for CMY layers using CMYK conversion and filament properties.
+    Returns (cyan, magenta, yellow, black) thicknesses.
     """
     # Convert RGB [0-255] to [0-1] scale
     rgb = target_rgb / 255.0
@@ -47,27 +48,33 @@ def calculate_color_thicknesses(
     f_cyan = filaments[LayerType.CYAN]
     f_magenta = filaments[LayerType.MAGENTA]
     f_yellow = filaments[LayerType.YELLOW]
+    f_white = filaments[LayerType.WHITE]
     
     # Calculate base thicknesses using CMYK values
-    target_thickness = 0.1  # Base target thickness, can be adjusted
+    target_thickness_cym = 0.1  # Base target thickness, can be adjusted
+    target_thickness_white = 0.2  # Base target thickness, can be adjusted
+    
+    # Calculate K thickness
     
     # Scale thicknesses by filament properties and transmission distance
-    cyan_thickness = c * target_thickness * f_cyan.transmission_distance
-    magenta_thickness = m * target_thickness * f_magenta.transmission_distance
-    yellow_thickness = y * target_thickness * f_yellow.transmission_distance
+    cyan_thickness = c * target_thickness_cym * f_cyan.transmission_distance
+    magenta_thickness = m * target_thickness_cym * f_magenta.transmission_distance
+    yellow_thickness = y * target_thickness_cym * f_yellow.transmission_distance
+    white_thickness = y * target_thickness_white * f_white.transmission_distance
     
     # Apply K (black) component to all layers
     darkness_boost = k * 0.3  # Adjust factor as needed
     cyan_thickness *= (1.0 + darkness_boost)
     magenta_thickness *= (1.0 + darkness_boost)
     yellow_thickness *= (1.0 + darkness_boost)
-    
+    white_thickness *= (1.0 + darkness_boost)
     # Clip to physical constraints
     cyan_thickness = np.clip(cyan_thickness, 0, f_cyan.transmission_distance)
     magenta_thickness = np.clip(magenta_thickness, 0, f_magenta.transmission_distance)
     yellow_thickness = np.clip(yellow_thickness, 0, f_yellow.transmission_distance)
+    white_thickness = np.clip(white_thickness, 0, f_white.transmission_distance)
     
-    return cyan_thickness, magenta_thickness, yellow_thickness
+    return cyan_thickness, magenta_thickness, yellow_thickness, white_thickness
 
 def calculate_white_thickness(
     target_rgb: np.ndarray,
@@ -106,9 +113,9 @@ def calculate_exact_thicknesses(
     luminance_config: LuminanceConfig
 ) -> Tuple[float, float, float, float]:
     """Calculate all layer thicknesses"""
-    c, m, y = calculate_color_thicknesses(target_rgb, filaments, luminance_config)
-    w = calculate_white_thickness(target_rgb, filaments, luminance_config)
-    return c, m, y, w
+    c, m, y, k = calculate_color_thicknesses(target_rgb, filaments, luminance_config)
+    #w = calculate_white_thickness(target_rgb, filaments, luminance_config)
+    return c, m, y, k
 
 def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> IntensityChannels:
     """Process entire image"""
