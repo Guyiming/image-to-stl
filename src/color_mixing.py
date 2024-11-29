@@ -32,48 +32,40 @@ def calculate_color_thicknesses(
     luminance_config: LuminanceConfig,
 ) -> Tuple[float, float, float]:
     """
-    Calculate thicknesses for CMY layers based on how much RGB they need to block.
-    Maximum thickness is determined by transmission distance and target luminance.
+    Calculate thicknesses for CMY layers using CMYK conversion and filament properties.
     """
-    # Convert target RGB to [0,1] scale
-    target_t = target_rgb / 255.0
+    # Convert RGB [0-255] to [0-1] scale
+    rgb = target_rgb / 255.0
+    
+    # Convert RGB to CMYK
+    k = 1 - np.max(rgb)
+    c = (1 - rgb[0] - k) / (1 - k + 1e-10)  # Add small epsilon to prevent division by zero
+    m = (1 - rgb[1] - k) / (1 - k + 1e-10)
+    y = (1 - rgb[2] - k) / (1 - k + 1e-10)
     
     # Get filament properties
     f_cyan = filaments[LayerType.CYAN]
     f_magenta = filaments[LayerType.MAGENTA]
     f_yellow = filaments[LayerType.YELLOW]
     
-    # Convert hex colors to RGB [0,1]
-    cyan_rgb = np.array(hex_to_rgb(f_cyan.hex_value)) / 255.0
-    magenta_rgb = np.array(hex_to_rgb(f_magenta.hex_value)) / 255.0
-    yellow_rgb = np.array(hex_to_rgb(f_yellow.hex_value)) / 255.0
+    # Calculate base thicknesses using CMYK values
+    target_thickness = 0.1  # Base target thickness, can be adjusted
     
-    # Calculate max thickness for each layer based on transmission distance
-    # and target luminance
-    cyan_max = f_cyan.transmission_distance * (1 - luminance_config.target_max_luminance) / 3.0
-    magenta_max = f_magenta.transmission_distance * (1 - luminance_config.target_max_luminance) / 3.0
-    yellow_max = f_yellow.transmission_distance * (1 - luminance_config.target_max_luminance) / 3.0
+    # Scale thicknesses by filament properties and transmission distance
+    cyan_thickness = c * target_thickness * f_cyan.transmission_distance
+    magenta_thickness = m * target_thickness * f_magenta.transmission_distance
+    yellow_thickness = y * target_thickness * f_yellow.transmission_distance
     
-    # Calculate how much of each primary color needs to be blocked
-    cyan_needed = (1.0 - target_t[0]) * cyan_max
-    magenta_needed = (1.0 - target_t[1]) * magenta_max
-    yellow_needed = (1.0 - target_t[2]) * yellow_max
-    
-    # Scale based on how effectively each filament blocks its primary color
-    cyan_thickness = cyan_needed * (1.0 - cyan_rgb[0])     # How well cyan blocks red
-    magenta_thickness = magenta_needed * (1.0 - magenta_rgb[1])  # How well magenta blocks green
-    yellow_thickness = yellow_needed * (1.0 - yellow_rgb[2])    # How well yellow blocks blue
-    
-    # Add extra thickness where multiple colors are needed
-    darkness_factor = 1.0 - np.max(target_t)
-    cyan_thickness *= (1.0 + darkness_factor)
-    magenta_thickness *= (1.0 + darkness_factor)
-    yellow_thickness *= (1.0 + darkness_factor)
+    # Apply K (black) component to all layers
+    darkness_boost = k * 0.3  # Adjust factor as needed
+    cyan_thickness *= (1.0 + darkness_boost)
+    magenta_thickness *= (1.0 + darkness_boost)
+    yellow_thickness *= (1.0 + darkness_boost)
     
     # Clip to physical constraints
-    cyan_thickness = np.clip(cyan_thickness, 0, cyan_max)
-    magenta_thickness = np.clip(magenta_thickness, 0, magenta_max)
-    yellow_thickness = np.clip(yellow_thickness, 0, yellow_max)
+    cyan_thickness = np.clip(cyan_thickness, 0, f_cyan.transmission_distance)
+    magenta_thickness = np.clip(magenta_thickness, 0, f_magenta.transmission_distance)
+    yellow_thickness = np.clip(yellow_thickness, 0, f_yellow.transmission_distance)
     
     return cyan_thickness, magenta_thickness, yellow_thickness
 
