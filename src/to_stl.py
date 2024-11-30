@@ -28,10 +28,8 @@ def create_layer_mesh(height_map: np.ndarray,
     
     next_heights = z + previous_heights
     
-    # Create coordinate meshgrids
     x_coords, y_coords = np.meshgrid(np.arange(x_pixels), np.arange(y_pixels))
     
-    # Generate vertices for all cubes at once
     vertices = np.zeros((y_pixels, x_pixels, 8, 3))
     
     # Bottom vertices
@@ -46,26 +44,25 @@ def create_layer_mesh(height_map: np.ndarray,
     vertices[:, :, 6] = np.stack([(x_coords + 1) * pixel_size, (y_coords + 1) * pixel_size, next_heights], axis=-1)
     vertices[:, :, 7] = np.stack([x_coords * pixel_size, (y_coords + 1) * pixel_size, next_heights], axis=-1)
     
-    # Reshape vertices to 2D array
     vertices = vertices.reshape(-1, 3)
     
-    # Generate faces
+    # Faces
     pixel_indices = np.arange(y_pixels * x_pixels * 8).reshape(y_pixels, x_pixels, 8)
-    faces = []
+    base_indices = pixel_indices[:, :, 0].reshape(-1)
+    face_template = np.array([
+        [0, 2, 1], [0, 3, 2],  # bottom
+        [4, 5, 6], [4, 6, 7],  # top
+        [0, 1, 5], [0, 5, 4],  # front
+        [2, 3, 7], [2, 7, 6],  # back
+        [0, 4, 7], [0, 7, 3],  # left
+        [1, 2, 6], [1, 6, 5]   # right
+    ])
     
-    for y in range(y_pixels):
-        for x in range(x_pixels):
-            base_idx = pixel_indices[y, x, 0]
-            faces.extend([
-                [base_idx + i for i in face] for face in [
-                    [0, 2, 1], [0, 3, 2],  # bottom
-                    [4, 5, 6], [4, 6, 7],  # top
-                    [0, 1, 5], [0, 5, 4],  # front
-                    [2, 3, 7], [2, 7, 6],  # back
-                    [0, 4, 7], [0, 7, 3],  # left
-                    [1, 2, 6], [1, 6, 5]   # right
-                ]
-            ])
+    # Create offset array for each pixel
+    offsets = np.arange(0, len(base_indices) * 8, 8)[:, None, None]
+    
+    # Broadcasting to create all faces at once
+    faces = (face_template[None, :, :] + offsets).reshape(-1, 3)
     
     faces = np.array(faces)
     
