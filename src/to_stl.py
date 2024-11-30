@@ -12,78 +12,83 @@ def create_layer_mesh(height_map: np.ndarray,
                      min_height: float = 0,
                      flat_top: bool = False,
                      ) -> Tuple[Mesh, np.ndarray]:
-    vertices = []
-    faces = []
     y_pixels, x_pixels = height_map.shape
     
-    next_heights = np.zeros_like(height_map, dtype=float)
-    
-    # Calculate the target height for flat top
+    # Vectorized height calculations
+    previous_heights = np.zeros_like(height_map) if previous_heights is None else previous_heights
     max_height = np.max(previous_heights) + min_height if flat_top else 0
+    
+    if flat_top:
+        z = np.full_like(height_map, max_height) - previous_heights
+    else:
+        z = height_map.copy()
+        if height_step_mm > 0:
+            z = np.round(z / height_step_mm) * height_step_mm
+        z = np.maximum(z, min_height)
+    
+    next_heights = z + previous_heights
+    
+    # Create coordinate meshgrids
+    x_coords, y_coords = np.meshgrid(np.arange(x_pixels), np.arange(y_pixels))
+    
+    # Generate vertices for all cubes at once
+    vertices = np.zeros((y_pixels, x_pixels, 8, 3))
+    
+    # Bottom vertices
+    vertices[:, :, 0] = np.stack([x_coords * pixel_size, y_coords * pixel_size, previous_heights], axis=-1)
+    vertices[:, :, 1] = np.stack([(x_coords + 1) * pixel_size, y_coords * pixel_size, previous_heights], axis=-1)
+    vertices[:, :, 2] = np.stack([(x_coords + 1) * pixel_size, (y_coords + 1) * pixel_size, previous_heights], axis=-1)
+    vertices[:, :, 3] = np.stack([x_coords * pixel_size, (y_coords + 1) * pixel_size, previous_heights], axis=-1)
+    
+    # Top vertices
+    vertices[:, :, 4] = np.stack([x_coords * pixel_size, y_coords * pixel_size, next_heights], axis=-1)
+    vertices[:, :, 5] = np.stack([(x_coords + 1) * pixel_size, y_coords * pixel_size, next_heights], axis=-1)
+    vertices[:, :, 6] = np.stack([(x_coords + 1) * pixel_size, (y_coords + 1) * pixel_size, next_heights], axis=-1)
+    vertices[:, :, 7] = np.stack([x_coords * pixel_size, (y_coords + 1) * pixel_size, next_heights], axis=-1)
+    
+    # Reshape vertices to 2D array
+    vertices = vertices.reshape(-1, 3)
+    
+    # Generate faces
+    pixel_indices = np.arange(y_pixels * x_pixels * 8).reshape(y_pixels, x_pixels, 8)
+    faces = []
     
     for y in range(y_pixels):
         for x in range(x_pixels):
-            start_height = previous_heights[y, x] if previous_heights is not None else 0
-            
-            if flat_top:
-                # Calculate the height needed to reach max_height
-                z = max_height - previous_heights[y, x]
-            else:
-                z = height_map[y, x]
-                if height_step_mm > 0:
-                    z = round(z / height_step_mm) * height_step_mm
-                z = max(z, min_height)
-            
-            z += start_height
-            next_heights[y, x] = z
-            
-            v0 = [x * pixel_size, y * pixel_size, start_height]
-            v1 = [(x + 1) * pixel_size, y * pixel_size, start_height]
-            v2 = [(x + 1) * pixel_size, (y + 1) * pixel_size, start_height]
-            v3 = [x * pixel_size, (y + 1) * pixel_size, start_height]
-            v4 = [x * pixel_size, y * pixel_size, z]
-            v5 = [(x + 1) * pixel_size, y * pixel_size, z]
-            v6 = [(x + 1) * pixel_size, (y + 1) * pixel_size, z]
-            v7 = [x * pixel_size, (y + 1) * pixel_size, z]
-            
-            base_idx = len(vertices)
-            vertices.extend([v0, v1, v2, v3, v4, v5, v6, v7])
-            
+            base_idx = pixel_indices[y, x, 0]
             faces.extend([
-                [base_idx + 0, base_idx + 2, base_idx + 1],
-                [base_idx + 0, base_idx + 3, base_idx + 2],
-                [base_idx + 4, base_idx + 5, base_idx + 6],
-                [base_idx + 4, base_idx + 6, base_idx + 7],
-                [base_idx + 0, base_idx + 1, base_idx + 5],
-                [base_idx + 0, base_idx + 5, base_idx + 4],
-                [base_idx + 2, base_idx + 3, base_idx + 7],
-                [base_idx + 2, base_idx + 7, base_idx + 6],
-                [base_idx + 0, base_idx + 4, base_idx + 7],
-                [base_idx + 0, base_idx + 7, base_idx + 3],
-                [base_idx + 1, base_idx + 2, base_idx + 6],
-                [base_idx + 1, base_idx + 6, base_idx + 5]
+                [base_idx + i for i in face] for face in [
+                    [0, 2, 1], [0, 3, 2],  # bottom
+                    [4, 5, 6], [4, 6, 7],  # top
+                    [0, 1, 5], [0, 5, 4],  # front
+                    [2, 3, 7], [2, 7, 6],  # back
+                    [0, 4, 7], [0, 7, 3],  # left
+                    [1, 2, 6], [1, 6, 5]   # right
+                ]
             ])
-
-    vertices = np.array(vertices)
+    
     faces = np.array(faces)
     
+    # Create mesh and compute normals
     stl_mesh = Mesh(np.zeros(len(faces), dtype=Mesh.dtype))
+    stl_mesh.vectors = vertices[faces]
     
-    for i, face in enumerate(faces):
-        v0 = vertices[face[0]]
-        v1 = vertices[face[1]]
-        v2 = vertices[face[2]]
-        
-        edge1 = v1 - v0
-        edge2 = v2 - v0
-        normal = np.cross(edge1, edge2)
-        if np.any(normal):
-            normal = normal / np.linalg.norm(normal)
-        else:
-            normal = np.array([0, 0, 1])
-        
-        stl_mesh.vectors[i] = np.array([v0, v1, v2])
-        stl_mesh.normals[i] = normal
+    # Vectorized normal calculation
+    v0 = vertices[faces[:, 0]]
+    v1 = vertices[faces[:, 1]]
+    v2 = vertices[faces[:, 2]]
+    
+    edge1 = v1 - v0
+    edge2 = v2 - v0
+    normals = np.cross(edge1, edge2)
+    
+    # Normalize non-zero normals
+    norms = np.linalg.norm(normals, axis=1)
+    mask = norms > 0
+    normals[mask] = normals[mask] / norms[mask, np.newaxis]
+    normals[~mask] = [0, 0, 1]
+    
+    stl_mesh.normals = normals
     
     return stl_mesh, next_heights
 
