@@ -60,7 +60,7 @@ def calculate_color_thicknesses(
     cyan_thickness = c * target_thickness_cym * f_cyan.transmission_distance
     magenta_thickness = m * target_thickness_cym * f_magenta.transmission_distance
     yellow_thickness = y * target_thickness_cym * f_yellow.transmission_distance
-    white_thickness = y * target_thickness_white * f_white.transmission_distance
+    white_thickness = k * target_thickness_white * f_white.transmission_distance
     
     # Apply K (black) component to all layers
     darkness_boost = k * 0.3  # Adjust factor as needed
