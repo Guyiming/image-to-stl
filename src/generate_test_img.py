@@ -37,8 +37,8 @@ def create_test_chart(size=800):
         img[y1:y2, x1:x2] = color
     
     # 3. Grayscale gradient (two sections tall)
-    for i in range(2 * section_size):
-        value = int((i / (2 * section_size)) * 255)
+    for i in range(4 * section_size):
+        value = int((i / (4 * section_size)) * 255)
         y = i #+ section_size  # Start from second row (y=section_size)
         img[y, 3*section_size:4*section_size] = [value, value, value]
     
@@ -82,7 +82,7 @@ def create_test_chart(size=800):
     img[y_coords, x_coords] = wheel_bgr.reshape(-1, 3)
     
     # Add test gradient bars in bottom right
-    gradient_width = section_size // 4
+    gradient_width = section_size // 3
     
     # Add pure CMY gradients
     gradients = [
@@ -92,7 +92,7 @@ def create_test_chart(size=800):
     ]
     
     for i, color in enumerate(gradients):
-        x1 = 3 * section_size + i * gradient_width
+        x1 = i * gradient_width
         x2 = x1 + gradient_width
         for j in range(2 * section_size):
             alpha = j / (2 * section_size)
