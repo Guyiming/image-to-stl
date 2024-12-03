@@ -61,6 +61,7 @@ class StlConfig(BaseModel):
     base_height: float = Field(default=0.2, description="Height of the base plate in mm")
     pixel_size: float = Field(default=1.0, description="Size of each pixel in mm")
     height_step_mm: float = Field(default=0.0, description="Height quantization step. 0 for continuous height")
+    face_up : bool = Field(default=True, description="Whether the lithophane is viewed from the top (face up) or bottom (face down)")
     intensity_min_height: float = Field(default=0.2, description="Minimum height for intensity layers")
     color_correction: ColorCorrection = Field(default=ColorCorrection.LINEAR, description="Color correction method")
     luminance_config: LuminanceConfig = Field(default_factory=LuminanceConfig)

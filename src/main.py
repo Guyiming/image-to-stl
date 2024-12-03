@@ -25,6 +25,8 @@ parser.add_argument('--resolution', '-r', type=float, default=0.4,
                    help='Resolution in mm per pixel/block')
 parser.add_argument('--stl-output', default='stl-output',
                    help='Output directory for STL files')
+parser.add_argument('--face-up', action='store_true', default=False,
+                   help='Whether to generate STLs face down (default: True)')
 
 args = parser.parse_args()
 
@@ -34,6 +36,7 @@ ifile = args.input
 ofile = args.output_image
 desired_width_mm = args.width
 resolution_mm = args.resolution
+face_up = args.face_up
 
 # Create output directory if it doesn't exist
 stl_output_dir = args.stl_output
@@ -80,6 +83,7 @@ stl_config = StlConfig(
     base_height=0.2,
     intensity_min_height=0.2,
     height_step_mm=0.1,
+    face_up=face_up,
     luminance_config = LuminanceConfig(
         target_max_luminance=0.9,  # percent light transmission in brightest areas
     ),

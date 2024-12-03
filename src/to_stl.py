@@ -11,6 +11,7 @@ def create_layer_mesh(height_map: np.ndarray,
                      previous_heights: np.ndarray = None,
                      min_height: float = 0,
                      flat_top: bool = False,
+                     face_up: bool = False,
                      ) -> Tuple[Mesh, np.ndarray]:
     y_pixels, x_pixels = height_map.shape
     
@@ -44,6 +45,13 @@ def create_layer_mesh(height_map: np.ndarray,
     vertices[:, :, 6] = np.stack([(x_coords + 1) * pixel_size, (y_coords + 1) * pixel_size, next_heights], axis=-1)
     vertices[:, :, 7] = np.stack([x_coords * pixel_size, (y_coords + 1) * pixel_size, next_heights], axis=-1)
     
+    # Mirror the x coordinates if not face_down
+    if not face_up:
+        # Calculate the total width of the model
+        total_width = x_pixels * pixel_size
+        # Mirror x coordinates by subtracting from total width
+        vertices[:, :, :, 0] = total_width - vertices[:, :, :, 0]
+
     vertices = vertices.reshape(-1, 3)
     
     # Faces
@@ -96,7 +104,8 @@ def create_base_plate(x_pixels: int, y_pixels: int, config: StlConfig) -> Mesh:
         height_map=height_map,
         height_step_mm=config.height_step_mm,
         pixel_size=config.pixel_size,
-        previous_heights=np.zeros((y_pixels, x_pixels))
+        previous_heights=np.zeros((y_pixels, x_pixels)),
+        face_up=config.face_up,
     )
     
     return base_mesh
@@ -112,6 +121,7 @@ def create_color_layer(height_map: np.ndarray,
         pixel_size=config.pixel_size,
         previous_heights=previous_heights,
         min_height=config.intensity_min_height if layer_type == LayerType.WHITE else 0,
+        face_up=config.face_up,
         flat_top=flat_top
       
     )
