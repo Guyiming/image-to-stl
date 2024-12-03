@@ -7,17 +7,17 @@ from enum import Enum
 import os
 
 class LuminanceConfig(BaseModel):
-    target_max_luminance: float = Field(
-        default=0.8,
+    cym_target_thickness: float = Field(
+        default=0.05,
         ge=0.0,
         le=1.0,
-        description="Target maximum light transmission (0-1) through the thinnest part of lithophane"
+        description="Target thickness of the cyan layer in mm"
     )
-    target_min_luminance: float = Field(
-        default=0.1,
+    white_target_thickness: float = Field(
+        default=0.2,
         ge=0.0,
         le=1.0,
-        description="Target minimum light transmission (0-1) through the thickest part of lithophane"
+        description="Target thickness of the cyan layer in mm"
     )
 
 class LayerType(Enum):

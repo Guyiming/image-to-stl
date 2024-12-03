@@ -51,8 +51,8 @@ def calculate_color_thicknesses(
     f_white = filaments[LayerType.WHITE]
     
     # Calculate base thicknesses using CMYK values
-    target_thickness_cym = 0.05  # Base target thickness, can be adjusted
-    target_thickness_white = 0.2  # Base target thickness, can be adjusted
+    target_thickness_cym = luminance_config.cym_target_thickness  # Base target thickness, can be adjusted
+    target_thickness_white = luminance_config.white_target_thickness  # Base target thickness, can be adjusted
     
     # Calculate K thickness
     

@@ -46,7 +46,7 @@ def create_layer_mesh(height_map: np.ndarray,
     vertices[:, :, 7] = np.stack([x_coords * pixel_size, (y_coords + 1) * pixel_size, next_heights], axis=-1)
     
     # Mirror the x coordinates if not face_down
-    if not face_up:
+    if face_up:
         # Calculate the total width of the model
         total_width = x_pixels * pixel_size
         # Mirror x coordinates by subtracting from total width

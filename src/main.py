@@ -27,6 +27,10 @@ parser.add_argument('--stl-output', default='stl-output',
                    help='Output directory for STL files')
 parser.add_argument('--face-up', action='store_true', default=False,
                    help='Whether to generate STLs face down (default: True)')
+parser.add_argument('--cym-target-thickness', type=float, default=0.1,
+                   help='Target thickness of the cyan layer in mm')
+parser.add_argument('--white-target-thickness', type=float, default=0.4,
+                   help='Target thickness of the white layer in mm')
 
 args = parser.parse_args()
 
@@ -85,7 +89,8 @@ stl_config = StlConfig(
     height_step_mm=0.1,
     face_up=face_up,
     luminance_config = LuminanceConfig(
-        target_max_luminance=0.9,  # percent light transmission in brightest areas
+        cym_target_thickness=args.cym_target_thickness,
+        white_target_thickness=args.white_target_thickness,
     ),
     color_correction=ColorCorrection.LUMINANCE,
     filament_library={
@@ -95,6 +100,7 @@ stl_config = StlConfig(
         LayerType.WHITE: library.get_filament("bambu_white_pla"),      # RGB for White
     }
 )
+print(f"\nSTL Configuration:\n{stl_config.model_dump_json(indent=2)}")
 
 if __name__ == "__main__":
     stl_collection = to_stl_cym(
