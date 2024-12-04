@@ -38,11 +38,12 @@ def calculate_color_thicknesses(
     # Convert RGB [0-255] to [0-1] scale
     rgb = target_rgb / 255.0
     
+    epsilon = 1e-2  # Prevent log(0)
     # Convert RGB to CMYK
     k = 1 - np.max(rgb)
-    c = (1 - rgb[0] - k) / (1 - k + 1e-10)  # Add small epsilon to prevent division by zero
-    m = (1 - rgb[1] - k) / (1 - k + 1e-10)
-    y = (1 - rgb[2] - k) / (1 - k + 1e-10)
+    c = (1 - rgb[0] - k) / (1 - k + epsilon)  # Add small epsilon to prevent division by zero
+    m = (1 - rgb[1] - k) / (1 - k + epsilon)
+    y = (1 - rgb[2] - k) / (1 - k + epsilon)
     
     # Get filament properties
     f_cyan = filaments[LayerType.CYAN]
@@ -50,17 +51,22 @@ def calculate_color_thicknesses(
     f_yellow = filaments[LayerType.YELLOW]
     f_white = filaments[LayerType.WHITE]
     
-    # Calculate base thicknesses using CMYK values
-    target_thickness_cym = luminance_config.cym_target_thickness  # Base target thickness, can be adjusted
-    target_thickness_white = luminance_config.white_target_thickness  # Base target thickness, can be adjusted
+    # Apply Beer-Lambert law: T = e^(-α * l), where:
+    # T is transmission (we want to solve for l - thickness)
+    # α is absorption coefficient (can be derived from filament properties)
+    # Solve for thickness: l = -ln(T) / α
     
-    # Calculate K thickness
+    # Calculate thicknesses using Beer-Lambert law
+    cyan_thickness = -np.log(max(1 - c, epsilon)) * f_cyan.transmission_distance
+    magenta_thickness = -np.log(max(1 - m, epsilon)) * f_magenta.transmission_distance
+    yellow_thickness = -np.log(max(1 - y, epsilon)) * f_yellow.transmission_distance
+    white_thickness = -np.log(max(1 - k, epsilon)) * f_white.transmission_distance
     
-    # Scale thicknesses by filament properties and transmission distance
-    cyan_thickness = c * target_thickness_cym * f_cyan.transmission_distance
-    magenta_thickness = m * target_thickness_cym * f_magenta.transmission_distance
-    yellow_thickness = y * target_thickness_cym * f_yellow.transmission_distance
-    white_thickness = k * target_thickness_white * f_white.transmission_distance
+    # Apply scaling factors from luminance config
+    cyan_thickness *= luminance_config.cym_target_thickness
+    magenta_thickness *= luminance_config.cym_target_thickness
+    yellow_thickness *= luminance_config.cym_target_thickness
+    white_thickness *= luminance_config.white_target_thickness
     
     # Apply K (black) component to all layers
     darkness_boost = k * 0.3  # Adjust factor as needed

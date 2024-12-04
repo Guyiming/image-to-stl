@@ -27,9 +27,9 @@ parser.add_argument('--stl-output', default='stl-output',
                    help='Output directory for STL files')
 parser.add_argument('--face-up', action='store_true', default=False,
                    help='Whether to generate STLs face down (default: True)')
-parser.add_argument('--cym-target-thickness', type=float, default=0.05,
+parser.add_argument('--cym-target-thickness', type=float, default=0.07,
                    help='Target thickness of the cyan layer in mm')
-parser.add_argument('--white-target-thickness', type=float, default=0.3,
+parser.add_argument('--white-target-thickness', type=float, default=0.16,
                    help='Target thickness of the white layer in mm')
 
 args = parser.parse_args()
