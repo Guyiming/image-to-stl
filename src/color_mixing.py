@@ -4,6 +4,7 @@ from ImageAnalyzer import ImageAnalyzer
 from dataclasses import dataclass
 from typing import Dict, Tuple
 from pydantic import BaseModel, Field
+from scipy.ndimage import gaussian_filter
 
 
 
@@ -30,6 +31,7 @@ def calculate_color_thicknesses(
     target_rgb: np.ndarray,
     filaments: Dict[LayerType, FilamentProperties],
     luminance_config: LuminanceConfig,
+    beer_lamport: bool = False
 ) -> Tuple[float, float, float, float]:
     """
     Calculate thicknesses for CMY layers using CMYK conversion and filament properties.
@@ -37,6 +39,11 @@ def calculate_color_thicknesses(
     """
     # Convert RGB [0-255] to [0-1] scale
     rgb = target_rgb / 255.0
+
+    if len(rgb.shape) > 1:  # Only apply if we're processing multiple pixels
+        sigma = 3.0  # Adjust this value to control smoothing strength (higher = more smooth)
+        rgb = gaussian_filter(rgb, sigma=sigma, mode='reflect')
+
     
     epsilon = 1e-2  # Prevent log(0)
     # Convert RGB to CMYK
@@ -50,23 +57,30 @@ def calculate_color_thicknesses(
     f_magenta = filaments[LayerType.MAGENTA]
     f_yellow = filaments[LayerType.YELLOW]
     f_white = filaments[LayerType.WHITE]
+
+    cyan_thickness = 0
+    magenta_thickness = 0
+    yellow_thickness = 0
+    white_thickness = 0
     
-    # Apply Beer-Lambert law: T = e^(-α * l), where:
-    # T is transmission (we want to solve for l - thickness)
-    # α is absorption coefficient (can be derived from filament properties)
-    # Solve for thickness: l = -ln(T) / α
-    
-    # Calculate thicknesses using Beer-Lambert law
-    cyan_thickness = -np.log(max(1 - c, epsilon)) * f_cyan.transmission_distance
-    magenta_thickness = -np.log(max(1 - m, epsilon)) * f_magenta.transmission_distance
-    yellow_thickness = -np.log(max(1 - y, epsilon)) * f_yellow.transmission_distance
-    white_thickness = -np.log(max(1 - k, epsilon)) * f_white.transmission_distance
-    
-    # Apply scaling factors from luminance config
-    cyan_thickness *= luminance_config.cym_target_thickness
-    magenta_thickness *= luminance_config.cym_target_thickness
-    yellow_thickness *= luminance_config.cym_target_thickness
-    white_thickness *= luminance_config.white_target_thickness
+    if beer_lamport: 
+        # Apply Beer-Lambert law: T = e^(-α * l), where:
+        # T is transmission (we want to solve for l - thickness)
+        # α is absorption coefficient (can be derived from filament properties)
+        # Solve for thickness: l = -ln(T) / α
+
+        # Calculate thicknesses using Beer-Lambert law
+        cyan_thickness = (-np.log(max(1 - c, epsilon)) * f_cyan.transmission_distance) * luminance_config.cym_target_thickness
+        magenta_thickness = (-np.log(max(1 - m, epsilon)) * f_magenta.transmission_distance) * luminance_config.cym_target_thickness
+        yellow_thickness = (-np.log(max(1 - y, epsilon)) * f_yellow.transmission_distance) * luminance_config.cym_target_thickness
+        white_thickness = (-np.log(max(1 - k, epsilon)) * f_white.transmission_distance) * luminance_config.white_target_thickness
+        
+    else:
+        # Scale thicknesses by filament properties and transmission distance
+        cyan_thickness = c * luminance_config.cym_target_thickness * f_cyan.transmission_distance
+        magenta_thickness = m * luminance_config.cym_target_thickness * f_magenta.transmission_distance
+        yellow_thickness = y * luminance_config.cym_target_thickness * f_yellow.transmission_distance
+        white_thickness = k * luminance_config.white_target_thickness * f_white.transmission_distance
     
     # Apply K (black) component to all layers
     darkness_boost = k * 0.3  # Adjust factor as needed
@@ -74,6 +88,7 @@ def calculate_color_thicknesses(
     magenta_thickness *= (1.0 + darkness_boost)
     yellow_thickness *= (1.0 + darkness_boost)
     white_thickness *= (1.0 + darkness_boost)
+    
     # Clip to physical constraints
     cyan_thickness = np.clip(cyan_thickness, 0, f_cyan.transmission_distance)
     magenta_thickness = np.clip(magenta_thickness, 0, f_magenta.transmission_distance)
