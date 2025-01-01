@@ -6,6 +6,10 @@ A couple of points to consider:
 * Simple CMYK colors and simple subtractive mixing
 * Support both 0.2mm and 0.4mm nozzle side
 
+## Examples
+
+![Example 1](./examples/example_printed.png)
+
 ## Setup
 
 1. Initialize UV environment:
