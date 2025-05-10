@@ -13,19 +13,19 @@ from pathlib import Path
 
 # Set up command line arguments
 parser = argparse.ArgumentParser(description='Process an image into CMYK 3D printable layers')
-parser.add_argument('--show-images', action='store_true', default=False,
+parser.add_argument('--show-images', action='store_true', default=True,
                    help='Display the original and processed images')
-parser.add_argument('--input', '-i', default='examples/girl-with-pearl-earings.png',
+parser.add_argument('--input', '-i', default='examples/test_scene.png',
                    help='Input image file path')
 parser.add_argument('--output-image', '-o', default='',
                    help='Output pixelated image file path')
-parser.add_argument('--width', '-w', type=float, default=50,
+parser.add_argument('--width', '-w', type=float, default=100,
                    help='Desired width in mm')
 parser.add_argument('--resolution', '-r', type=float, default=0.4,
                    help='Resolution in mm per pixel/block')
 parser.add_argument('--stl-output', default='stl-output',
                    help='Output directory for STL files')
-parser.add_argument('--face-up', action='store_true', default=False,
+parser.add_argument('--face-up', action='store_true', default=True,
                    help='Whether to generate STLs face down (default: True)')
 parser.add_argument('--cym-target-thickness', type=float, default=0.07,
                    help='Target thickness of the cyan layer in mm')
