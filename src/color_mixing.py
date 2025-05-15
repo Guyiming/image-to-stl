@@ -153,10 +153,10 @@ def calculate_color_thicknesses_cached(
         k_thickness = result.x[3]
         
         # Debug prints
-        print("Target RGB:", rgb * 255.0)
-        print("Achieved RGB:", calculate_achieved_rgb(cmy_thicknesses, k_thickness))
-        print("Error:", result.fun)
-        print("Solution:", cmy_thicknesses)
+        # print("Target RGB:", rgb * 255.0)
+        # print("Achieved RGB:", calculate_achieved_rgb(cmy_thicknesses, k_thickness))
+        # print("Error:", result.fun)
+        # print("Solution:", cmy_thicknesses)
         
         c = cmy_thicknesses[0]
         m = cmy_thicknesses[1]
