@@ -13,13 +13,13 @@ from pathlib import Path
 
 # Set up command line arguments
 parser = argparse.ArgumentParser(description='Process an image into CMYK 3D printable layers')
-parser.add_argument('--show-images', action='store_true', default=True,
+parser.add_argument('--show-images', action='store_true', default=False,
                    help='Display the original and processed images')
 parser.add_argument('--input', '-i', default='examples/test_scene.png',
                    help='Input image file path')
 parser.add_argument('--output-image', '-o', default='',
                    help='Output pixelated image file path')
-parser.add_argument('--width', '-w', type=float, default=100,
+parser.add_argument('--width', '-w', type=float, default=155,
                    help='Desired width in mm')
 parser.add_argument('--resolution', '-r', type=float, default=0.4,
                    help='Resolution in mm per pixel/block')
