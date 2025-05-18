@@ -1,3 +1,10 @@
+# 依赖包
+```
+pip install opencv-python
+pip install numpy-stl
+pip install pydantic
+pip install pyyaml
+```
 # Color Lithophane project
 
 This project helps you prepare and slice 3D Color Lithophanes.
@@ -11,6 +18,8 @@ A couple of points to consider:
 ![Example 1](./examples/example_printed.png)
 
 ## Setup
+
+
 
 1. Initialize UV environment:
 

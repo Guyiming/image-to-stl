@@ -59,6 +59,7 @@ class ImageAnalyzer:
             'format': os.path.splitext(self.image_path)[1].lower()
         }
     
+    #调整图像大小
     def pixelate(self, block_size: int) -> np.ndarray:
         """
         Pixelate the image using the specified block size.

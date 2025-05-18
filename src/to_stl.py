@@ -15,25 +15,34 @@ def create_layer_mesh(height_map: np.ndarray,
                      ) -> Tuple[Mesh, np.ndarray]:
     y_pixels, x_pixels = height_map.shape
     
-    # Vectorized height calculations
+    # 1. Vectorized height calculations  如果previous没传，则创建一个尺寸同等的全零数组，否则用previous
     previous_heights = np.zeros_like(height_map) if previous_heights is None else previous_heights
+
     max_height = np.max(previous_heights) + min_height if flat_top else 0
     
+    # 2. 处理height_map，确保每一个值不小于min_height
     if flat_top:
+        #平顶模式
+        #创建一个与heightmap形状相同但值全为max_height的数组，然后减去previous_heights
         z = np.full_like(height_map, max_height) - previous_heights
     else:
         z = height_map.copy()
         if height_step_mm > 0:
+            # 将高度值按指定步长离散化（四舍五入化）（如步长0.1mm：0.12→0.1，0.16→0.2）
             z = np.round(z / height_step_mm) * height_step_mm
+        # 修改数组确保所有高度不低于最小厚度要求    
         z = np.maximum(z, min_height)
     
+    # 3. 处理后的height_map 叠加了previouse
     next_heights = z + previous_heights
     
     x_coords, y_coords = np.meshgrid(np.arange(x_pixels), np.arange(y_pixels))
     
+    # 4. 计算顶点坐标,每个像素对应8个顶点，每个顶点有3个坐标（x, y, z）
     vertices = np.zeros((y_pixels, x_pixels, 8, 3))
     
     # Bottom vertices
+    # [x_coords * pixel_size, y_coords * pixel_size, previous_heights]是三个二维向量，np.stack将其合并为三维向量
     vertices[:, :, 0] = np.stack([x_coords * pixel_size, y_coords * pixel_size, previous_heights], axis=-1)
     vertices[:, :, 1] = np.stack([(x_coords + 1) * pixel_size, y_coords * pixel_size, previous_heights], axis=-1)
     vertices[:, :, 2] = np.stack([(x_coords + 1) * pixel_size, (y_coords + 1) * pixel_size, previous_heights], axis=-1)
@@ -52,6 +61,7 @@ def create_layer_mesh(height_map: np.ndarray,
         # Mirror x coordinates by subtracting from total width
         vertices[:, :, :, 0] = total_width - vertices[:, :, :, 0]
 
+    # 将三维的vertices转为一维的vertices
     vertices = vertices.reshape(-1, 3)
     
     # Faces
@@ -103,8 +113,8 @@ def create_base_plate(x_pixels: int, y_pixels: int, config: StlConfig) -> Mesh:
     base_mesh, _ = create_layer_mesh(
         height_map=height_map,
         height_step_mm=config.height_step_mm,
-        pixel_size=config.pixel_size,
-        previous_heights=np.zeros((y_pixels, x_pixels)),
+        pixel_size=config.pixel_size, #挤出头直径
+        previous_heights=np.zeros((y_pixels, x_pixels)), #创建一个指定尺寸的全零数组
         face_up=config.face_up,
     )
     

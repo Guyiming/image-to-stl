@@ -81,6 +81,7 @@ def calculate_color_thicknesses_cached(
     target_rgb = np.array([target_r, target_g, target_b])
     rgb = target_rgb / 255.0
 
+    #高斯平滑滤波，减少噪点
     if len(rgb.shape) > 1:  # Only apply if we're processing multiple pixels
         sigma = 3.0  # Adjust this value to control smoothing strength (higher = more smooth)
         rgb = gaussian_filter(rgb, sigma=sigma, mode='reflect')
@@ -101,10 +102,10 @@ def calculate_color_thicknesses_cached(
             # Start with white base
             achieved = white_rgb.copy()
             
-            # Apply K (black) filter first
+            # Apply K (black) filter first 用黑色滤镜，将整个颜色乘以(1 - k_amount)，这相当于减少光线的透过率，使颜色变暗。例如，k_amount为0.2时，颜色会变为原来的80%。（用白色代替黑色）
             achieved *= (1 - k_amount)
             
-            # Apply each color filter's contribution
+            # Apply each color filter's contribution 每个颜色滤镜的作用是减少其补色的透过率。例如，青色滤镜会减少红色通道的透过率，因为青色是红色的补色。代码中，cyan_rgb是青色耗材的颜色，假设为[0.0, 1.0, 1.0]（对应HEX #0086D6可能略有不同，但归一化后各通道值不同），那么(1 - cyan_rgb)就是[1.0, 0.0, 0.0]，乘以amounts[0]后得到红色通道的减少量。然后，achieved乘以(1 - 这个减少量)，从而降低红色通道的值，增加青色的表现。
             if amounts[0] > 0:  # Cyan
                 achieved *= (1 - amounts[0] * (1 - cyan_rgb))
             if amounts[1] > 0:  # Magenta
@@ -131,7 +132,7 @@ def calculate_color_thicknesses_cached(
             
             return color_error + cmy_penalty + k_penalty + saturation_bonus
         
-        # Update bounds to include K
+        # Update bounds to include K。 bounds最终结果是[(0, 1), (0, 1), (0, 1), (0, 1)]
         bounds = [(0, 1) for _ in range(4)]  # Now CMYK instead of just CMY
         
         # Initial guess including K
@@ -245,15 +246,15 @@ def calculate_exact_thicknesses(
     filaments: Dict[LayerType, FilamentProperties],
     luminance_config: LuminanceConfig
 ) -> Tuple[float, float, float, float]:
-    """Calculate all layer thicknesses"""
+    """将RGB值转为CMYK对应的厚度"""
     c, m, y, k = calculate_color_thicknesses(target_rgb, filaments, luminance_config)
     #w = calculate_white_thickness(target_rgb, filaments, luminance_config)
     return c, m, y, k
 
 def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> IntensityChannels:
     """Process entire image"""
-    shape = img.pixelated.shape[:2]
-    c_channel = np.zeros(shape)
+    shape = img.pixelated.shape[:2]   #获取图像的高度和宽度
+    c_channel = np.zeros(shape) #创建一个指定形状的全零数组
     y_channel = np.zeros(shape)
     m_channel = np.zeros(shape)
     w_channel = np.zeros(shape)

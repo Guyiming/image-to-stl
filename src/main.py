@@ -67,7 +67,7 @@ print(f"Final dimensions will be {desired_width_mm}mm x {physical_height_mm:.1f}
 yaml_path = Path("filaments.yaml")
 library = FilamentLibrary.from_yaml(yaml_path)
 
-
+#调整图像大小
 img.pixelate(block_size)
 
 if not ofile == '' and not ofile is None:
