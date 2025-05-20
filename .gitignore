@@ -35,5 +35,3 @@ nosetests.xml
 coverage.xml
 *.cover
 stl-output/
-#*.pyc
-#**/__pycache__
