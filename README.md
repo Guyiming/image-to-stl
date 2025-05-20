@@ -4,6 +4,7 @@ pip install opencv-python
 pip install numpy-stl
 pip install pydantic
 pip install pyyaml
+pip install scipy
 ```
 # Color Lithophane project
 
