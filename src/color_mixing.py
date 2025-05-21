@@ -207,7 +207,9 @@ def calculate_color_thicknesses_cached(
     magenta_thickness = np.clip(magenta_thickness, 0, m_filament_td)
     yellow_thickness = np.clip(yellow_thickness, 0, y_filament_td)
     white_thickness = np.clip(white_thickness, 0, k_filament_td)
-    
+
+    print("final thickness:", cyan_thickness, magenta_thickness, yellow_thickness, white_thickness)
+
     return cyan_thickness, magenta_thickness, yellow_thickness, white_thickness
 
 def calculate_white_thickness(
@@ -246,7 +248,7 @@ def calculate_exact_thicknesses(
     filaments: Dict[LayerType, FilamentProperties],
     luminance_config: LuminanceConfig
 ) -> Tuple[float, float, float, float]:
-    """将RGB值转为CMYK对应的厚度"""
+    """将RGB值转为CMYK,然后再转为对应的厚度"""
     c, m, y, k = calculate_color_thicknesses(target_rgb, filaments, luminance_config)
     #w = calculate_white_thickness(target_rgb, filaments, luminance_config)
     return c, m, y, k
@@ -254,7 +256,9 @@ def calculate_exact_thicknesses(
 def extract_and_invert_channels(img: ImageAnalyzer, config: StlConfig) -> IntensityChannels:
     """Process entire image"""
     shape = img.pixelated.shape[:2]   #获取图像的高度和宽度
-    c_channel = np.zeros(shape) #创建一个指定形状的全零数组
+    
+    #创建一堆全零数组
+    c_channel = np.zeros(shape) 
     y_channel = np.zeros(shape)
     m_channel = np.zeros(shape)
     w_channel = np.zeros(shape)

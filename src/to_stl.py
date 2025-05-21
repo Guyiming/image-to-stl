@@ -7,7 +7,7 @@ from color_mixing import extract_and_invert_channels, extract_and_invert_channel
 
 def create_layer_mesh(height_map: np.ndarray,
                      height_step_mm: float,
-                     pixel_size: float,
+                     pixel_size: float, #挤出头直径
                      previous_heights: np.ndarray = None,
                      min_height: float = 0,
                      flat_top: bool = False,
@@ -147,6 +147,7 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
     intensity_channels = extract_and_invert_channels(img, config) if config.color_correction == ColorCorrection.LUMINANCE else extract_and_invert_channels_linear(img, config)
     y_pixels, x_pixels = img.pixelated.shape[:2]
     
+    # 创建基座stl
     print("creating stl: white_base_mesh.stl")
     base_mesh = create_base_plate(x_pixels, y_pixels, config)
     base_heights = np.full((y_pixels, x_pixels), config.base_height, dtype=float)
@@ -156,13 +157,14 @@ def to_stl_cym(img: ImageAnalyzer, config: StlConfig = None) -> StlCollection:
         'cyan_mesh': (intensity_channels.c_channel, base_heights, LayerType.CYAN),
         'yellow_mesh': (intensity_channels.y_channel, None, LayerType.YELLOW),
         'magenta_mesh': (intensity_channels.m_channel, None, LayerType.MAGENTA),
-        'clear_mesh': (intensity_channels.intensity_map, None, LayerType.CLEAR),
+        'clear_mesh': (intensity_channels.intensity_map, None, LayerType.CLEAR), #clear_mesh与white_intensity_mesh是同一个
         'white_intensity_mesh': (intensity_channels.intensity_map, None, LayerType.WHITE)
     }
     
     previous_heights = base_heights
     meshes = {'white_base_mesh': base_mesh}
     
+    #创建各个层的stl
     for name, (height_map, _, layer_type) in layers.items():
         print("creating stl: " + name + ".stl")
         mesh, previous_heights = create_color_layer(
